@@ -25,7 +25,6 @@ func BenchmarkGameMarshal(b *testing.B) {
 	}
 	g := newGame("foo", GameState{
 		Seed:     1,
-		Round:    0,
 		Revealed: make([]bool, 25),
 		WordSet:  d.Words(),
 	}, GameOptions{})
@@ -41,7 +40,7 @@ func BenchmarkGameMarshal(b *testing.B) {
 func TestGameShuffle(t *testing.T) {
 	gamesWithoutRepeats := len(testWords)/25 - 1
 
-	initialState := randomState(testWords)
+	initialState := randomState(testWords, DefaultBoardSize)
 	currState := initialState
 
 	m := map[string]int{}
@@ -53,6 +52,6 @@ func TestGameShuffle(t *testing.T) {
 			}
 			m[w] = i
 		}
-		currState = nextGameState(currState)
+		currState = nextGameState(currState, DefaultBoardSize)
 	}
 }

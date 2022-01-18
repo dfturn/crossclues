@@ -28,7 +28,7 @@ func init() {
 func randomGames(n int) map[string]*Game {
 	games := make(map[string]*Game)
 	for _, w := range gameIDs[:n] {
-		games[w] = newGame(w, randomState(words), GameOptions{})
+		games[w] = newGame(w, randomState(words, DefaultBoardSize), GameOptions{})
 	}
 	return games
 }
@@ -84,9 +84,9 @@ func TestPersist(t *testing.T) {
 			t.Fatalf("%s: Words don't match: %s, %s",
 				id, pretty.Sprint(got.Words), pretty.Sprint(g.Words))
 		}
-		if !reflect.DeepEqual(got.Layout, g.Layout) {
-			t.Fatalf("%s: Layout don't match: %s, %s",
-				id, pretty.Sprint(got.Layout), pretty.Sprint(g.Layout))
+		if !reflect.DeepEqual(got.Deck, g.Deck) {
+			t.Fatalf("%s: Deck don't match: %s, %s",
+				id, pretty.Sprint(got.Deck), pretty.Sprint(g.Deck))
 		}
 
 	}

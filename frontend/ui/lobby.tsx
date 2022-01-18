@@ -14,6 +14,8 @@ export const Lobby = ({ defaultGameID }) => {
   const [words, setWords] = React.useState({ ...OriginalWords, Custom: [] });
   const [warning, setWarning] = React.useState(null);
   const [timer, setTimer] = React.useState(null);
+  const [handSize, setHandSize] = React.useState(2);
+  const [boardSize, setBoardSize] = React.useState(4);
   const [enforceTimerEnabled, setEnforceTimerEnabled] = React.useState(false);
 
   let selectedWordCount = selectedWordSets
@@ -49,6 +51,8 @@ export const Lobby = ({ defaultGameID }) => {
         timer_duration_ms:
           timer && timer.length ? timer[0] * 60 * 1000 + timer[1] * 1000 : 0,
         enforce_timer: timer && timer.length && enforceTimerEnabled,
+        hand_size: handSize,
+        board_size: boardSize,
       })
       .then(() => {
         const newURL = (document.location.pathname = '/' + newGameName);
@@ -76,7 +80,7 @@ export const Lobby = ({ defaultGameID }) => {
       <div id="available-games">
         <form id="new-game">
           <p className="intro">
-            Play Codenames online across multiple devices on a shared board. To
+            Play CrossClues online across multiple devices on a shared board. To
             create a new game or join an existing game, enter a game identifier
             and click 'GO'.
           </p>
@@ -100,6 +104,36 @@ export const Lobby = ({ defaultGameID }) => {
           ) : (
             <div></div>
           )}
+
+          <div id="hand-size">
+            <span>Hand Size:</span>
+            <input
+              type="number"
+              name="hand-size"
+              id="hand-size"
+              min={1}
+              max={2}
+              value={handSize}
+              onChange={(e) => {
+                setHandSize(parseInt(e?.target?.value));
+              }}
+            />
+          </div>
+
+          <div id="board-size">
+            <span>Board Size:</span>
+            <input
+              type="number"
+              name="board-size"
+              id="board-size"
+              min={3}
+              max={5}
+              value={boardSize}
+              onChange={(e) => {
+                setBoardSize(parseInt(e?.target?.value));
+              }}
+            />
+          </div>
 
           <TimerSettings
             {...{
