@@ -105,34 +105,36 @@ export const Lobby = ({ defaultGameID }) => {
             <div></div>
           )}
 
-          <div id="hand-size">
-            <span>Hand Size:</span>
-            <input
-              type="number"
-              name="hand-size"
-              id="hand-size"
-              min={1}
-              max={2}
-              value={handSize}
-              onChange={(e) => {
-                setHandSize(parseInt(e?.target?.value));
-              }}
-            />
-          </div>
+          <div id="game-settings">
+            <div id="timer-duration">
+              <span>Hand Size:</span>
+              <input
+                type="number"
+                name="hand-size"
+                id="hand-size"
+                min={1}
+                max={2}
+                value={handSize}
+                onChange={(e) => {
+                  setHandSize(parseInt(e?.target?.value));
+                }}
+              />
+            </div>
 
-          <div id="board-size">
-            <span>Board Size:</span>
-            <input
-              type="number"
-              name="board-size"
-              id="board-size"
-              min={3}
-              max={5}
-              value={boardSize}
-              onChange={(e) => {
-                setBoardSize(parseInt(e?.target?.value));
-              }}
-            />
+            <div id="timer-duration">
+              <span>Board Size:</span>
+              <input
+                type="number"
+                name="board-size"
+                id="board-size"
+                min={3}
+                max={5}
+                value={boardSize}
+                onChange={(e) => {
+                  setBoardSize(parseInt(e?.target?.value));
+                }}
+              />
+            </div>
           </div>
 
           <TimerSettings

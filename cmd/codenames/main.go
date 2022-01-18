@@ -22,16 +22,25 @@ import (
 	"github.com/pkg/errors"
 )
 
-const defaultListenAddr = ":9091"
+const defaultPort = "8080"
 const expiryDur = -24 * time.Hour
+
+func LookupEnvOrString(key string, defaultVal string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+	return defaultVal
+}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	var bootstrapURL string
-	var listenAddr string
-	flag.StringVar(&listenAddr, "listen-addr", defaultListenAddr,
-		"address for server to listen on")
+	var listenPort string
+
+	flag.StringVar(&listenPort, "port", LookupEnvOrString("PORT", defaultPort),
+		"port for server to listen on")
+
 	flag.StringVar(&bootstrapURL, "bootstrap-url", "",
 		"URL of an existing codenames server to bootstrap the DB from")
 
@@ -92,10 +101,10 @@ func main() {
 		go tracePeriodically(traceDir)
 	}
 
-	log.Printf("[STARTUP] Listening on addr %s\n", listenAddr)
+	log.Printf("[STARTUP] Listening on port %s\n", listenPort)
 	server := &codenames.Server{
 		Server: http.Server{
-			Addr: listenAddr,
+			Addr: ":" + listenPort,
 		},
 		Store: ps,
 	}

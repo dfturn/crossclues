@@ -7,7 +7,7 @@
 #infoContent {
   font-family: system, -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
     'Lucida Grande';
-  border-bottom: 1px #eee solid;
+  border-bottom: 1px rgb(112, 112, 112) solid;
   display: grid;
   grid-auto-flow: column;
   grid-gap: 2em;
@@ -28,6 +28,18 @@
 #timer {
   font-size: 1.5em;
   font-family: 'Courier New', monospace;
+}
+
+.cardsInHand {
+  display: flex;
+  padding: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.cardsInHand .cell {
+  margin: 10px;
+  background: #ede2cc;
 }
 
 #status-line {
@@ -117,59 +129,34 @@
   justify-content: center;
   align-items: center;
   text-align: center;
-  width: var(--width);
-  height: var(--height);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.header .word {
+  font-weight: bold;
+}
+
+.letter {
+  font-size: 4vw;
 }
 
 .cell.disabled {
   cursor: not-allowed !important;
 }
 
-.table {
-  display: flex;
-  flex-wrap: wrap;
-  height: 600px;
-}
-
 .board {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  width: 800px;
-  height: 500px;
-}
-
-.number {
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  width: var(--width);
-}
-
-.numbers {
   display: grid;
-  grid-auto-flow: column;
-  align-items: center;
-  justify-content: space-between;
-  height: 100px;
-  width: 100%;
-}
-
-.letter {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  height: var(--height);
-}
-
-.letters {
-  display: grid;
-  grid-auto-flow: row;
-  align-items: center;
-  justify-content: space-between;
-  width: 100px;
-  height: 100%;
+  grid-template-columns: repeat(auto-fill, var(--width));
+  grid-gap: 1em;
+  height: 600px;
+  border-bottom: 1px rgb(112, 112, 112) solid;
+  padding-bottom: 1em;
 }
 
 .board .hidden-word {
@@ -180,8 +167,9 @@
 }
 
 .cell .word {
-  vertical-align: middle;
+  text-align: center;
   display: inline-block;
+  font-size: 3.5vw;
 }
 
 .cell {

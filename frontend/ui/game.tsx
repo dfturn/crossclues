@@ -2,7 +2,7 @@ import * as React from 'react';
 import axios from 'axios';
 import { Settings, SettingsButton, SettingsPanel } from '~/ui/settings';
 import Timer from '~/ui/timer';
-import { v4 as uuid } from 'uuid';
+import { ClientJS } from 'clientjs';
 
 const defaultFavicon =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAA8SURBVHgB7dHBDQAgCAPA1oVkBWdzPR84kW4AD0LCg36bXJqUcLL2eVY/EEwDFQBeEfPnqUpkLmigAvABK38Grs5TfaMAAAAASUVORK5CYII=';
@@ -18,7 +18,7 @@ export class Game extends React.Component {
       mounted: true,
       settings: Settings.load(),
       mode: 'game',
-      playerID: uuid(), // TODO(minor): Persist between sessions?
+      playerID: new ClientJS().getFingerprint().toString(),
     };
   }
 
@@ -119,8 +119,6 @@ export class Game extends React.Component {
     if (this.state.game && this.state.game.state_id) {
       state_id = this.state.game.state_id;
     }
-
-    console.log(this.state);
 
     axios
       .post('/game-state', {
@@ -291,15 +289,16 @@ export class Game extends React.Component {
 
     const cardsInHand = Object.keys(this.state.game.player_cards);
 
-    const cellPercentSize = 95 / (this.state.game.board_size + 1);
+    const cellPercentSize = 85 / (this.state.game.board_size + 1);
     const cellPercentString = cellPercentSize + '%';
 
     var cellStyle = {
       '--width': cellPercentString,
       '--height': cellPercentString,
     } as React.CSSProperties;
-    var letterStyle = { '--height': cellPercentString } as React.CSSProperties;
-    var numberStyle = { '--width': cellPercentString } as React.CSSProperties;
+
+    const gridWidth = this.state.game.board_size + 1;
+    const gridSpaces = gridWidth * gridWidth;
 
     return (
       <div id="game-view" className={'player' + this.extraClasses()}>
@@ -307,92 +306,80 @@ export class Game extends React.Component {
           {shareLink}
           {timer}
 
-          <div className={'cardsInHand'}>
-            {cardsInHand.map((w, idx) => (
-              <div key={idx} className={'cardInHand'}>
-                <span
-                  className="card"
-                  role="img"
-                  aria-label={this.getCellAriaLabel(idx)} // TODO: Bother with aria?
+          <div id="remaining" role="img">
+            <span className={'remaining'}>
+              {'Score: ' +
+                this.remaining() +
+                ' / ' +
+                this.state.game.revealed.length}
+            </span>
+          </div>
+
+          <button onClick={(e) => this.nextGame(e)} id="next-game-btn">
+            Next game
+          </button>
+
+          <SettingsButton
+            onClick={(e) => {
+              this.toggleSettingsView(e);
+            }}
+          />
+        </div>
+
+        <div className={'board ' + statusClass} style={cellStyle}>
+          {[...Array(gridSpaces)].map((x, i) => {
+            const row = Math.floor(i / gridWidth);
+            const col = i % gridWidth;
+
+            if (i == 0) {
+              return <div className={'header'} key={i}></div>;
+            } else if (row == 0) {
+              return (
+                <div className={'header'} key={i}>
+                  <span className="word">{numberWords[col - 1]}</span>
+                  <span className="letter">{this.getColName(col - 1)}</span>
+                </div>
+              );
+            } else if (col == 0) {
+              return (
+                <div className={'header'} key={i}>
+                  <span className="word">{letterWords[row - 1]}</span>
+                  <span className="letter">{this.getRowName(row - 1)}</span>
+                </div>
+              );
+            } else {
+              const revealedIdx = (row - 1) * gridWidth + (col - row);
+
+              return (
+                <div
+                  key={i}
+                  idx={revealedIdx}
+                  className={
+                    'cell ' +
+                    (this.state.game.revealed[revealedIdx]
+                      ? 'revealed'
+                      : 'hidden-word')
+                  }
+                  onClick={(e) => this.guess(e, revealedIdx)}
                 >
-                  {this.getIndexName(w)}
-                </span>
-              </div>
-            ))}
-          </div>
+                  <span className="word" role="button">
+                    {this.state.game.revealed[revealedIdx]
+                      ? this.getIndexName(revealedIdx)
+                      : ''}
+                  </span>
+                </div>
+              );
+            }
+          })}
         </div>
 
-        <div id="status-line" className={'remaining'}>
-          <div id="remaining" role="img" aria-label={this.getScoreAriaLabel()}>
-            <span className={'remaining'}>{this.remaining()}</span>
-          </div>
-        </div>
-
-        <div className={'table'}>
-          <div className={'numbers'}>
-            <div key={0} className={'number'} style={numberStyle}>
-              <span className="word"></span>
+        <div className={'cardsInHand'}>
+          {cardsInHand.map((w, idx) => (
+            <div key={idx} className={'cell hidden-word'}>
+              <span className="word">{this.getIndexName(w)}</span>
             </div>
-
-            {numberWords.map((w, idx) => (
-              <div key={idx + 1} className={'number'} style={numberStyle}>
-                <span
-                  className="word"
-                  aria-disabled={this.cellDisabled(idx)}
-                  aria-label={this.getCellAriaLabel(idx)}
-                >
-                  {w}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className={'letters'}>
-            {letterWords.map((w, idx) => (
-              <div key={idx} className={'letter'}>
-                <span
-                  className="word"
-                  aria-disabled={this.cellDisabled(idx)}
-                  aria-label={this.getCellAriaLabel(idx)}
-                >
-                  {w}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className={'board ' + statusClass}>
-            {this.state.game.revealed.map((r, idx) => (
-              <div
-                key={idx}
-                className={
-                  'cell ' +
-                  (this.state.game.revealed[idx] ? 'revealed' : 'hidden-word')
-                }
-                style={cellStyle}
-                onClick={(e) => this.guess(e, idx)}
-              >
-                <span
-                  className="word"
-                  role="button"
-                  aria-disabled={this.cellDisabled(idx)}
-                  aria-label={this.getCellAriaLabel(idx)}
-                >
-                  {this.state.game.revealed[idx] ? this.getIndexName(idx) : ''}
-                </span>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
-
-        <SettingsButton
-          onClick={(e) => {
-            this.toggleSettingsView(e);
-          }}
-        />
-        <button onClick={(e) => this.nextGame(e)} id="next-game-btn">
-          Next game
-        </button>
       </div>
     );
   }
