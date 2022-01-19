@@ -12,9 +12,9 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.21.1",
+    "axios": "^0.21.2",
     "clientjs": "^0.2.1",
-    "node-forge": "0.10.0",
+    "node-forge": "1.0.0",
     "react": "^16.8.6",
     "react-dom": "^16.8.6"
   },
