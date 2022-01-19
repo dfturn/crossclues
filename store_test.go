@@ -1,4 +1,4 @@
-package codenames
+package crossclues
 
 import (
 	"io/ioutil"

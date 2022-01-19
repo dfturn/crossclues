@@ -1,4 +1,4 @@
-package codenames
+package crossclues
 
 import (
 	"crypto/subtle"

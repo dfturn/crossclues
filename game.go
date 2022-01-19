@@ -1,4 +1,4 @@
-package codenames
+package crossclues
 
 import (
 	"errors"
@@ -143,7 +143,8 @@ func (g *Game) Draw(playerID string) error {
 	}
 
 	if g.DeckIndex >= len(g.Deck) {
-		return fmt.Errorf("ran out of cards in the deck at index %d", g.DeckIndex)
+		// It's fine to run out of cards
+		return nil
 	}
 
 	g.UpdatedAt = time.Now()
