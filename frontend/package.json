@@ -13,12 +13,13 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^0.21.2",
+    "clientjs": "^0.2.1",
     "node-forge": "1.0.0",
     "react": "^16.8.6",
     "react-dom": "^16.8.6"
   },
   "scripts": {
-    "start": "parcel watch app.tsx game.css lobby.css",
+    "start": "parcel watch app.tsx game.tsx game.css lobby.css",
     "build": "./build.sh"
   },
   "husky": {

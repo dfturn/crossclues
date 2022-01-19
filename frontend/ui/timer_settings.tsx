@@ -22,7 +22,7 @@ const TimerSettings: React.FunctionalComponent<TimerSettingsProps> = ({
         toggle={{
           name: 'Timer',
           setting: 'timer',
-          desc: "If enabled a timer will countdown each team's turn.",
+          desc: 'If enabled a timer will count down to end the game.',
         }}
         values={{ timer }}
         handleToggle={() => {

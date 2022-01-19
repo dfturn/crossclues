@@ -1,4 +1,4 @@
-package codenames
+package crossclues
 
 import (
 	"crypto/subtle"
@@ -130,7 +130,7 @@ func (s *Server) getGame(gameID string) *GameHandle {
 	if ok {
 		return gh
 	}
-	gh = newHandle(newGame(gameID, randomState(s.defaultWords), GameOptions{}), s.Store)
+	gh = newHandle(newGame(gameID, randomState(s.defaultWords, DefaultBoardSize), GameOptions{}), s.Store)
 	s.games[gameID] = gh
 	return gh
 }
@@ -138,8 +138,9 @@ func (s *Server) getGame(gameID string) *GameHandle {
 // POST /game-state
 func (s *Server) handleGameState(rw http.ResponseWriter, req *http.Request) {
 	var body struct {
-		GameID  string  `json:"game_id"`
-		StateID *string `json:"state_id"`
+		GameID   string  `json:"game_id"`
+		StateID  *string `json:"state_id"`
+		PlayerID string  `json:"player_id"`
 	}
 	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
@@ -149,26 +150,36 @@ func (s *Server) handleGameState(rw http.ResponseWriter, req *http.Request) {
 
 	gh := s.getGame(body.GameID)
 
+	gh.update(func(g *Game) bool {
+		err = g.Draw(body.PlayerID)
+		return err == nil
+	})
+	if err != nil {
+		http.Error(rw, err.Error(), 400)
+		return
+	}
+
 	updated, replaced := gh.gameStateChanged(body.StateID)
 
 	select {
 	case <-req.Context().Done():
 		return
 	case <-time.After(15 * time.Second):
-		writeGame(rw, gh)
+		writeGameForPlayer(rw, gh, body.PlayerID)
 	case <-updated:
-		writeGame(rw, gh)
+		writeGameForPlayer(rw, gh, body.PlayerID)
 	case <-replaced:
 		gh = s.getGame(body.GameID)
-		writeGame(rw, gh)
+		writeGameForPlayer(rw, gh, body.PlayerID)
 	}
 }
 
 // POST /guess
 func (s *Server) handleGuess(rw http.ResponseWriter, req *http.Request) {
 	var request struct {
-		GameID string `json:"game_id"`
-		Index  int    `json:"index"`
+		GameID   string `json:"game_id"`
+		Index    int    `json:"index"`
+		PlayerID string `json:"player_id"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -181,44 +192,26 @@ func (s *Server) handleGuess(rw http.ResponseWriter, req *http.Request) {
 
 	var err error
 	gh.update(func(g *Game) bool {
-		err = g.Guess(request.Index)
+		err = g.Guess(request.Index, request.PlayerID)
 		return err == nil
 	})
 	if err != nil {
 		http.Error(rw, err.Error(), 400)
 		return
 	}
-	writeGame(rw, gh)
-}
-
-// POST /end-turn
-func (s *Server) handleEndTurn(rw http.ResponseWriter, req *http.Request) {
-	var request struct {
-		GameID       string `json:"game_id"`
-		CurrentRound int    `json:"current_round"`
-	}
-
-	decoder := json.NewDecoder(req.Body)
-	if err := decoder.Decode(&request); err != nil {
-		http.Error(rw, "Error decoding", 400)
-		return
-	}
-
-	gh := s.getGame(request.GameID)
-
-	gh.update(func(g *Game) bool {
-		return g.NextTurn(request.CurrentRound)
-	})
-	writeGame(rw, gh)
+	writeGameForPlayer(rw, gh, request.PlayerID)
 }
 
 func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
 	var request struct {
 		GameID          string   `json:"game_id"`
+		PlayerID        string   `json:"player_id"`
 		WordSet         []string `json:"word_set"`
 		CreateNew       bool     `json:"create_new"`
 		TimerDurationMS int64    `json:"timer_duration_ms"`
 		EnforceTimer    bool     `json:"enforce_timer"`
+		HandSize        int      `json:"hand_size"`
+		BoardSize       int      `json:"board_size"`
 	}
 
 	if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
@@ -255,20 +248,22 @@ func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
 		opts := GameOptions{
 			TimerDurationMS: request.TimerDurationMS,
 			EnforceTimer:    request.EnforceTimer,
+			HandSize:        request.HandSize,
+			BoardSize:       request.BoardSize,
 		}
 
 		var ok bool
 		gh, ok = s.games[request.GameID]
 		if !ok {
 			// no game exists, create for the first time
-			gh = newHandle(newGame(request.GameID, randomState(words), opts), s.Store)
+			gh = newHandle(newGame(request.GameID, randomState(words, opts.BoardSize), opts), s.Store)
 			s.games[request.GameID] = gh
 		} else if request.CreateNew {
 			replacedCh := gh.replaced
 
 			previousGame := gh.g
 
-			nextState := nextGameState(gh.g.GameState)
+			nextState := nextGameState(gh.g.GameState, gh.g.BoardSize)
 			gh = newHandle(newGame(request.GameID, nextState, opts), s.Store)
 			s.games[request.GameID] = gh
 
@@ -285,7 +280,7 @@ func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}()
-	writeGame(rw, gh)
+	writeGameForPlayer(rw, gh, request.PlayerID)
 }
 
 type statsResponse struct {
@@ -305,7 +300,7 @@ func (s *Server) handleStats(rw http.ResponseWriter, req *http.Request) {
 	var inProgress, createdWithinAnHour int
 	for _, gh := range s.games {
 		gh.mu.Lock()
-		if gh.g.WinningTeam == nil && gh.g.anyRevealed() {
+		if gh.g.Won == false && gh.g.anyRevealed() {
 			inProgress++
 		}
 		if hourAgo.Before(gh.g.CreatedAt) {
@@ -334,7 +329,7 @@ func (s *Server) cleanupOldGames() {
 	defer s.mu.Unlock()
 	for id, gh := range s.games {
 		gh.mu.Lock()
-		if gh.g.WinningTeam != nil && gh.g.CreatedAt.Add(3*time.Hour).Before(time.Now()) {
+		if gh.g.Won == false && gh.g.CreatedAt.Add(3*time.Hour).Before(time.Now()) {
 			delete(s.games, id)
 			log.Printf("Removed completed game %s\n", id)
 		} else if gh.g.CreatedAt.Add(72 * time.Hour).Before(time.Now()) {
@@ -362,7 +357,6 @@ func (s *Server) Start(games map[string]*Game) error {
 	s.mux = http.NewServeMux()
 	s.mux.HandleFunc("/stats", s.handleStats)
 	s.mux.HandleFunc("/next-game", s.handleNextGame)
-	s.mux.HandleFunc("/end-turn", s.handleEndTurn)
 	s.mux.HandleFunc("/guess", s.handleGuess)
 	s.mux.HandleFunc("/game-state", s.handleGameState)
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("frontend/dist"))))
@@ -450,8 +444,9 @@ func basicAuth(handler http.Handler, password, realm string) http.Handler {
 	})
 }
 
-func writeGame(rw http.ResponseWriter, gh *GameHandle) {
-	writeJSON(rw, gh)
+func writeGameForPlayer(rw http.ResponseWriter, gh *GameHandle, playerID string) {
+	gameCopy := gh.g.ClientCopy(playerID)
+	writeJSON(rw, gameCopy)
 }
 
 func writeJSON(rw http.ResponseWriter, resp interface{}) {

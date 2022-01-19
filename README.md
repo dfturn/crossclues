@@ -1,19 +1,19 @@
-# codenames
+# crossclues
 
-[![GoDoc](https://godoc.org/github.com/jbowens/codenames?status.svg)](https://godoc.org/github.com/jbowens/codenames)
+CrossClues implements a web app for generating and displaying boards for the <a href="https://boardgamegeek.com/boardgame/300753/cross-clues">Cross Clues</a> board game. Generated boards are shareable and will update as words are revealed.
 
-Codenames implements a web app for generating and displaying boards for the <a href="https://en.wikipedia.org/wiki/Codenames_(board_game)">Codenames</a> board game. Generated boards are shareable and will update as words are revealed. The board can be viewed either as a spymaster or an ordinary player.
+A hosted version of the app is available at [www.crossclues-t2pg6luaoa-uw.a.run.app](https://crossclues-t2pg6luaoa-uw.a.run.app).
 
-A hosted version of the app is available at [www.horsepaste.com](https://www.horsepaste.com).
+# Credit
 
-![Spymaster view of board](https://raw.githubusercontent.com/jbowens/codenames/master/screenshot.png)
+This app is forked and heavily based on the [codenames app](https://github.com/jbowens/codenames) developed by jbowens.
 
 ## Building
 
 The app requires a [Go](https://golang.org/) toolchain, node.js and [parcel](https://parceljs.org/) to build. Once you have those setup, build the application Go binary with:
 
 ```
-go install github.com/jbowens/codenames/cmd/codenames
+go build cmd/crossclues/main.go && ./main
 ```
 
 Then from the frontend directory, install the node modules:
@@ -39,17 +39,17 @@ npm run build
 Alternatively, the repository includes a Dockerfile for building a docker image of this app.
 
 ```
-docker build . -t codenames:latest
+docker build . -t crossclues:latest
 ```
 
 The following command will launch the docker image:
 
 ```
-docker run --name codenames_server --rm -p 9091:9091 -d codenames
+docker run --name crossclues_server --rm -p 8080:8080 -d crossclues
 ```
 
 The following command will kill the docker instance:
 
 ```
-docker stop codenames_server
+docker stop crossclues_server
 ```

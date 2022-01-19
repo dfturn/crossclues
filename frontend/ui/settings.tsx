@@ -8,20 +8,9 @@ const settingToggles = [
     desc: 'Enlarge the board to take up the whole page.',
   },
   {
-    name: 'Color-blind',
-    setting: 'colorBlind',
-    desc:
-      'Add patterned borders to help color-blind players distinguish teams.',
-  },
-  {
     name: 'Dark',
     setting: 'darkMode',
     desc: 'Darken the mood.',
-  },
-  {
-    name: 'Spymaster may guess',
-    setting: 'spymasterMayGuess',
-    desc: 'When enabled, clicking a word from spymaster view reveals the word.',
   },
 ];
 

@@ -2,6 +2,7 @@ import * as React from 'react';
 import axios from 'axios';
 import { Settings, SettingsButton, SettingsPanel } from '~/ui/settings';
 import Timer from '~/ui/timer';
+import { ClientJS } from 'clientjs';
 
 const defaultFavicon =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAA8SURBVHgB7dHBDQAgCAPA1oVkBWdzPR84kW4AD0LCg36bXJqUcLL2eVY/EEwDFQBeEfPnqUpkLmigAvABK38Grs5TfaMAAAAASUVORK5CYII=';
@@ -17,7 +18,7 @@ export class Game extends React.Component {
       mounted: true,
       settings: Settings.load(),
       mode: 'game',
-      codemaster: false,
+      playerID: new ClientJS().getFingerprint().toString(),
     };
   }
 
@@ -70,46 +71,31 @@ export class Game extends React.Component {
 
   private setTurnIndicatorFavicon(prevProps, prevState) {
     if (
-      prevState?.game?.winning_team !== this.state.game?.winning_team ||
+      prevState?.game?.won !== this.state.game?.won ||
       prevState?.game?.round !== this.state.game?.round ||
       prevState?.game?.state_id !== this.state.game?.state_id
     ) {
-      if (this.state.game?.winning_team) {
+      if (this.state.game?.won) {
         document.getElementById('favicon').setAttribute('href', defaultFavicon);
       } else {
         document
           .getElementById('favicon')
-          .setAttribute(
-            'href',
-            this.currentTeam() === 'blue' ? blueTurnFavicon : redTurnFavicon
-          );
+          .setAttribute('href', blueTurnFavicon);
       }
     }
   }
 
   /* Gets info about current score so screen readers can describe how many words
    * remain for each team. */
-  private getScoreAriaLabel(startingTeam, otherTeam) {
-    return (
-      'Score: ' +
-      this.remaining(startingTeam).toString() +
-      ' ' +
-      startingTeam +
-      ' words remaining, ' +
-      this.remaining(otherTeam).toString() +
-      ' ' +
-      otherTeam +
-      ' words remaining'
-    );
+  private getScoreAriaLabel() {
+    return this.remaining().toString() + ' words remaining.';
   }
 
   // Determines value of aria-disabled attribute to tell screen readers if word can be clicked.
   private cellDisabled(idx) {
-    if (this.state.codemaster && !this.state.settings.spymasterMayGuess) {
+    if (this.state.game.revealed[idx]) {
       return true;
-    } else if (this.state.game.revealed[idx]) {
-      return true;
-    } else if (this.state.game.winning_team) {
+    } else if (this.state.game.won) {
       return true;
     }
     return false;
@@ -117,17 +103,9 @@ export class Game extends React.Component {
 
   // Gets info about word to assist screen readers with describing cell.
   private getCellAriaLabel(idx) {
-    let ariaLabel = this.state.game.words[idx].toLowerCase();
-    if (
-      this.state.codemaster ||
-      this.state.game.winning_team ||
-      this.state.game.revealed[idx]
-    ) {
-      let wordColor = this.state.game.layout[idx];
-      ariaLabel += ', ' + (wordColor === 'black' ? 'assassin' : wordColor);
-    }
-    ariaLabel +=
-      ', ' + (this.state.game.revealed[idx] ? 'revealed word' : 'hidden word');
+    let ariaLabel = this.state.game.revealed[idx]
+      ? 'revealed word'
+      : 'hidden word';
     ariaLabel += '.';
     return ariaLabel;
   }
@@ -146,13 +124,11 @@ export class Game extends React.Component {
       .post('/game-state', {
         game_id: this.props.gameID,
         state_id: state_id,
+        player_id: this.state.playerID,
       })
       .then(({ data }) => {
         this.setState((oldState) => {
           const stateToUpdate = { game: data };
-          if (oldState.game && data.created_at != oldState.game.created_at) {
-            stateToUpdate.codemaster = false;
-          }
           return stateToUpdate;
         });
       })
@@ -163,20 +139,12 @@ export class Game extends React.Component {
       });
   }
 
-  public toggleRole(e, role) {
-    e.preventDefault();
-    this.setState({ codemaster: role == 'codemaster' });
-  }
-
   public guess(e, idx) {
     e.preventDefault();
-    if (this.state.codemaster && !this.state.settings.spymasterMayGuess) {
-      return; // ignore if player is the codemaster
-    }
     if (this.state.game.revealed[idx]) {
       return; // ignore if already revealed
     }
-    if (this.state.game.winning_team) {
+    if (this.state.game.won) {
       return; // ignore if game is over
     }
 
@@ -184,49 +152,46 @@ export class Game extends React.Component {
       .post('/guess', {
         game_id: this.state.game.id,
         index: idx,
+        player_id: this.state.playerID,
       })
       .then(({ data }) => {
         this.setState({ game: data });
       });
   }
 
-  public currentTeam() {
-    if (this.state.game.round % 2 == 0) {
-      return this.state.game.starting_team;
-    }
-    return this.state.game.starting_team == 'red' ? 'blue' : 'red';
-  }
-
-  public remaining(color) {
+  public remaining() {
     var count = 0;
     for (var i = 0; i < this.state.game.revealed.length; i++) {
       if (this.state.game.revealed[i]) {
-        continue;
-      }
-      if (this.state.game.layout[i] == color) {
         count++;
       }
     }
     return count;
   }
 
-  public endTurn() {
-    axios
-      .post('/end-turn', {
-        game_id: this.state.game.id,
-        current_round: this.state.game.round,
-      })
-      .then(({ data }) => {
-        this.setState({ game: data });
-      });
+  public getRowName(row) {
+    const rows = ['A', 'B', 'C', 'D', 'E'];
+    return rows[row];
+  }
+
+  public getColName(col) {
+    const cols = ['1', '2', '3', '4', '5'];
+    return cols[col];
+  }
+
+  public getIndexName(idx) {
+    const boardSize = this.state.game.board_size;
+
+    const row = Math.floor(idx / boardSize);
+    const col = idx % boardSize;
+    return this.getRowName(row) + this.getColName(col);
   }
 
   public nextGame(e) {
     e.preventDefault();
     // Ask for confirmation when current game hasn't finished
     let allowNextGame =
-      this.state.game.winning_team ||
-      confirm('Do you really want to start a new game?');
+      this.state.game.won || confirm('Do you really want to start a new game?');
     if (!allowNextGame) {
       return;
     }
@@ -234,13 +199,16 @@ export class Game extends React.Component {
     axios
       .post('/next-game', {
         game_id: this.state.game.id,
+        player_id: this.state.playerID,
         word_set: this.state.game.word_set,
         create_new: true,
         timer_duration_ms: this.state.game.timer_duration_ms,
         enforce_timer: this.state.game.enforce_timer,
+        hand_size: this.state.game.hand_size,
+        board_size: this.state.game.board_size,
       })
       .then(({ data }) => {
-        this.setState({ game: data, codemaster: false });
+        this.setState({ game: data });
       });
   }
 
@@ -279,34 +247,20 @@ export class Game extends React.Component {
       );
     }
 
-    let status, statusClass;
-    if (this.state.game.winning_team) {
-      statusClass = this.state.game.winning_team + ' win';
-      status = this.state.game.winning_team + ' wins!';
+    let statusClass;
+    if (this.state.game.won) {
+      statusClass = 'win';
     } else {
-      statusClass = this.currentTeam() + '-turn';
-      status = this.currentTeam() + "'s turn";
+      statusClass = 'turn';
     }
 
-    let endTurnButton;
-    if (!this.state.game.winning_team && !this.state.codemaster) {
-      endTurnButton = (
-        <div id="end-turn-cont">
-          <button
-            onClick={(e) => this.endTurn(e)}
-            id="end-turn-btn"
-            aria-label={'End ' + this.currentTeam() + "'s turn"}
-          >
-            End {this.currentTeam()}&#39;s turn
-          </button>
-        </div>
-      );
-    }
+    let numberWords = this.state.game.words.filter((w, idx) => {
+      return idx < this.state.game.words.length / 2;
+    });
 
-    let otherTeam = 'blue';
-    if (this.state.game.starting_team == 'blue') {
-      otherTeam = 'red';
-    }
+    let letterWords = this.state.game.words.filter((w, idx) => {
+      return idx >= this.state.game.words.length / 2;
+    });
 
     let shareLink = null;
     if (!this.state.settings.fullscreen) {
@@ -326,109 +280,105 @@ export class Game extends React.Component {
           roundStartedAt={this.state.game.round_started_at}
           timerDurationMs={this.state.game.timer_duration_ms}
           handleExpiration={() => {
-            this.state.game.enforce_timer && this.endTurn();
+            this.state.game.enforce_timer && this.endTurn(); // TODO: End game not turn
           }}
-          freezeTimer={!!this.state.game.winning_team}
+          freezeTimer={!!this.state.game.won}
         />
       </div>
     );
 
+    const cardsInHand = Object.keys(this.state.game.player_cards);
+
+    const cellPercentSize = 85 / (this.state.game.board_size + 1);
+    const cellPercentString = cellPercentSize + '%';
+
+    var cellStyle = {
+      '--width': cellPercentString,
+      '--height': cellPercentString,
+    } as React.CSSProperties;
+
+    const gridWidth = this.state.game.board_size + 1;
+    const gridSpaces = gridWidth * gridWidth;
+
     return (
-      <div
-        id="game-view"
-        className={
-          (this.state.codemaster ? 'codemaster' : 'player') +
-          this.extraClasses()
-        }
-      >
+      <div id="game-view" className={'player' + this.extraClasses()}>
         <div id="infoContent">
           {shareLink}
           {timer}
-        </div>
-        <div id="status-line" className={statusClass}>
-          <div
-            id="remaining"
-            role="img"
-            aria-label={this.getScoreAriaLabel(
-              this.state.game.starting_team,
-              otherTeam
-            )}
-          >
-            <span className={this.state.game.starting_team + '-remaining'}>
-              {this.remaining(this.state.game.starting_team)}
-            </span>
-            &nbsp;&ndash;&nbsp;
-            <span className={otherTeam + '-remaining'}>
-              {this.remaining(otherTeam)}
+
+          <div id="remaining" role="img">
+            <span className={'remaining'}>
+              {'Score: ' +
+                this.remaining() +
+                ' / ' +
+                this.state.game.revealed.length}
             </span>
           </div>
-          <div id="status" className="status-text">
-            {status}
-          </div>
-          {endTurnButton}
-        </div>
-        <div className={'board ' + statusClass}>
-          {this.state.game.words.map((w, idx) => (
-            <div
-              key={idx}
-              className={
-                'cell ' +
-                this.state.game.layout[idx] +
-                ' ' +
-                (this.state.codemaster && !this.state.settings.spymasterMayGuess
-                  ? 'disabled '
-                  : '') +
-                (this.state.game.revealed[idx] ? 'revealed' : 'hidden-word')
-              }
-              onClick={(e) => this.guess(e, idx, w)}
-            >
-              <span
-                className="word"
-                role="button"
-                aria-disabled={this.cellDisabled(idx)}
-                aria-label={this.getCellAriaLabel(idx)}
-              >
-                {w}
-              </span>
-            </div>
-          ))}
-        </div>
-        <form
-          id="mode-toggle"
-          className={
-            this.state.codemaster ? 'codemaster-selected' : 'player-selected'
-          }
-          role="radiogroup"
-        >
+
+          <button onClick={(e) => this.nextGame(e)} id="next-game-btn">
+            Next game
+          </button>
+
           <SettingsButton
             onClick={(e) => {
               this.toggleSettingsView(e);
             }}
           />
-          <button
-            onClick={(e) => this.toggleRole(e, 'player')}
-            className="player"
-            role="radio"
-            aria-checked={!this.state.codemaster}
-          >
-            Player
-          </button>
-          <button
-            onClick={(e) => this.toggleRole(e, 'codemaster')}
-            className="codemaster"
-            role="radio"
-            aria-checked={this.state.codemaster}
-          >
-            Spymaster
-          </button>
-          <button onClick={(e) => this.nextGame(e)} id="next-game-btn">
-            Next game
-          </button>
-        </form>
-        <div id="coffee">
-          <a href="https://www.buymeacoffee.com/jbowens" target="_blank">
-            Buy the developer a coffee.
-          </a>
+        </div>
+
+        <div className={'board ' + statusClass} style={cellStyle}>
+          {[...Array(gridSpaces)].map((x, i) => {
+            const row = Math.floor(i / gridWidth);
+            const col = i % gridWidth;
+
+            if (i == 0) {
+              return <div className={'header'} key={i}></div>;
+            } else if (row == 0) {
+              return (
+                <div className={'header'} key={i}>
+                  <span className="word">{numberWords[col - 1]}</span>
+                  <span className="letter">{this.getColName(col - 1)}</span>
+                </div>
+              );
+            } else if (col == 0) {
+              return (
+                <div className={'header'} key={i}>
+                  <span className="word">{letterWords[row - 1]}</span>
+                  <span className="letter">{this.getRowName(row - 1)}</span>
+                </div>
+              );
+            } else {
+              const revealedIdx = (row - 1) * gridWidth + (col - row);
+
+              return (
+                <div
+                  key={i}
+                  idx={revealedIdx}
+                  className={
+                    'cell ' +
+                    (this.state.game.revealed[revealedIdx]
+                      ? 'revealed'
+                      : 'hidden-word')
+                  }
+                  onClick={(e) => this.guess(e, revealedIdx)}
+                >
+                  <span className="word" role="button">
+                    {this.state.game.revealed[revealedIdx]
+                      ? this.getIndexName(revealedIdx)
+                      : ''}
+                  </span>
+                </div>
+              );
+            }
+          })}
+        </div>
+
+        <div className={'cardsInHand'}>
+          {cardsInHand.map((w, idx) => (
+            <div key={idx} className={'cell hidden-word'}>
+              <span className="word">{this.getIndexName(w)}</span>
+            </div>
+          ))}
         </div>
       </div>
     );

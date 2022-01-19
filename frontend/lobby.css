@@ -4,10 +4,6 @@ body {
   font-family: 'Roboto', verdana, sans-serif;
 }
 
-#topbar {
-  padding: 1em;
-}
-
 #topbar a {
   color: black;
   text-decoration: none;
@@ -175,6 +171,11 @@ p.intro {
 #banner a {
   color: #000;
   font-weight: bold;
+}
+
+#game-settings {
+  margin: 2em 0 2em 0;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 #timer-settings {
