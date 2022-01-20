@@ -10,7 +10,7 @@ This app is forked and heavily based on the [codenames app](https://github.com/j
 
 ## Building
 
-The app requires a [Go](https://golang.org/) toolchain, node.js and [parcel](https://parceljs.org/) to build. Once you have those setup, build the application Go binary with:
+The app requires a [Go](https://golang.org/) toolchain, node.js and [parcel](https://parceljs.org/) to build. Once you have those setup, build and run the application Go binary with:
 
 ```
 go build cmd/crossclues/main.go && ./main

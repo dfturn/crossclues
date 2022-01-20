@@ -233,6 +233,8 @@ export class Game extends React.Component {
     Settings.save(vals);
   }
 
+  public endGame() {}
+
   render() {
     if (!this.state.game) {
       return <p className="loading">Loading&hellip;</p>;
@@ -262,25 +264,22 @@ export class Game extends React.Component {
       return idx >= this.state.game.words.length / 2;
     });
 
-    let shareLink = null;
-    if (!this.state.settings.fullscreen) {
-      shareLink = (
-        <div id="share">
-          Send this link to friends:&nbsp;
-          <a className="url" href={window.location.href}>
-            {window.location.href}
-          </a>
-        </div>
-      );
-    }
+    let shareLink = (
+      <div id="share">
+        Send this link to friends:&nbsp;
+        <a className="url" href={window.location.href}>
+          {window.location.href}
+        </a>
+      </div>
+    );
 
     const timer = !!this.state.game.timer_duration_ms && (
       <div id="timer">
         <Timer
-          roundStartedAt={this.state.game.round_started_at}
+          roundStartedAt={this.state.game.created_at}
           timerDurationMs={this.state.game.timer_duration_ms}
           handleExpiration={() => {
-            this.state.game.enforce_timer && this.endTurn(); // TODO: End game not turn
+            this.state.game.enforce_timer && this.endGame();
           }}
           freezeTimer={!!this.state.game.won}
         />
@@ -375,7 +374,7 @@ export class Game extends React.Component {
 
         <div className={'cardsInHand'}>
           {cardsInHand.map((w, idx) => (
-            <div key={idx} className={'cell hidden-word'}>
+            <div key={idx} className={'cell revealed'}>
               <span className="word">{this.getIndexName(w)}</span>
             </div>
           ))}

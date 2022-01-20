@@ -1,17 +1,17 @@
-# Build backend.
-FROM golang:1.14-alpine as backend
-WORKDIR /app
-COPY . .
-RUN apk add gcc musl-dev \
-    && go build ./cmd/crossclues/main.go
-
 # Build frontend.
 FROM node:12-alpine as frontend
 COPY . /app
 WORKDIR /app/frontend
 RUN npm install -g parcel-bundler \
-    && npm install \
-    && sh build.sh
+    && npm install
+RUN sh build.sh
+
+# Build backend.
+FROM golang:1.14-alpine as backend
+WORKDIR /app
+COPY . .
+RUN apk add gcc musl-dev
+RUN go build ./cmd/crossclues/main.go
 
 # Copy build artifacts from previous build stages (to remove files not necessary for
 # deployment).

@@ -83,6 +83,13 @@ export const Lobby = ({ defaultGameID }) => {
             Play CrossClues online across multiple devices on a shared board. To
             create a new game or join an existing game, enter a game identifier
             and click 'GO'.
+            <br></br>
+            <a
+              className="url"
+              href={'http://store.blueorangegames.com/p/cross-clues'}
+            >
+              Buy a physical copy of Cross Clues from the producer here!
+            </a>
           </p>
           <input
             type="text"

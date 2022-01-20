@@ -39,7 +39,6 @@
 
 .cardsInHand .cell {
   margin: 10px;
-  background: #ede2cc;
 }
 
 #status-line {
@@ -117,8 +116,24 @@
   font-weight: bold;
 }
 
+.dark-mode .header .word {
+  color: rgb(202, 202, 202);
+}
+
 .letter {
   font-size: 4vw;
+}
+
+.dark-mode .letter {
+  color: rgb(202, 202, 202);
+}
+
+.dark-mode .word {
+  color: rgb(202, 202, 202);
+}
+
+.dark-mode .cell.revealed .word {
+  color: rgb(29, 29, 29);
 }
 
 .cell.disabled {
@@ -137,9 +152,6 @@
 .board .hidden-word {
   cursor: pointer;
 }
-.board .revealed {
-  background: #ede2cc;
-}
 
 .cell .word {
   text-align: center;
@@ -151,45 +163,46 @@
   background: #e8e8e8;
 }
 
+.cell.revealed {
+  background: #ffe8bb;
+}
+
 #remaining span {
   display: inline-block;
   padding: 3px 5px;
-}
-
-.color-blind #status {
-  padding: 3px 5px;
-}
-
-.color-blind .revealed .word {
-  text-decoration: underline;
 }
 
 .dark-mode {
   background: rgb(33, 33, 33);
 }
 .dark-mode h1 {
-  color: #ccc;
-}
-.dark-mode .cell {
-  background: rgb(117, 117, 117);
+  color: rgb(202, 202, 202);
 }
 
-.dark-mode #end-turn-btn,
-.dark-mode #mode-toggle button {
-  background: #444;
-  border: 1px #999 solid;
-  color: #bbb;
+.dark-mode .cell.hidden-word {
+  background: rgb(65, 65, 65);
 }
-.dark-mode #mode-toggle button.gear {
+
+.dark-mode .cell .revealed {
+  background: #ede2cc;
+}
+
+.dark-mode #next-game-btn,
+.dark-mode #mode-toggle button {
+  background: rgb(65, 65, 65);
+  border: 1px #999 solid;
+  color: rgb(202, 202, 202);
+}
+.dark-mode button.gear {
   background-color: transparent;
   border: none;
-  color: #444;
+  color: rgb(0, 0, 0);
 }
 .dark-mode #remaining {
-  color: #eee;
+  color: rgb(202, 202, 202);
 }
 .dark-mode #timer {
-  color: #eee;
+  color: rgb(202, 202, 202);
 }
 
 #game-view.full-screen {
@@ -282,21 +295,5 @@
 }
 
 .toggle-state {
-  font-weight: bold;
-}
-
-#coffee {
-  margin-top: 2em;
-  text-align: right;
-  font-size: 0.8em;
-}
-#coffee a {
-  color: #ccc;
-}
-.dark-mode #coffee a {
-  color: #555;
-}
-.color-blind #coffee a {
-  color: #000;
   font-weight: bold;
 }
