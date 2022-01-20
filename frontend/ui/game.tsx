@@ -137,6 +137,9 @@ export class Game extends React.Component {
     if (this.state.game.won) {
       return; // ignore if game is over
     }
+    if (this.state.timerExpired) {
+      return; // ignore if timer expired
+    }
 
     axios
       .post('/guess', {
@@ -158,6 +161,9 @@ export class Game extends React.Component {
     e.preventDefault();
     if (this.state.game.won) {
       return; // ignore if game is over
+    }
+    if (this.state.timerExpired) {
+      return; // ignore if timer expired
     }
 
     axios
@@ -204,6 +210,27 @@ export class Game extends React.Component {
     return this.getRowName(row) + this.getColName(col);
   }
 
+  public toggleSettingsView(e) {
+    if (e != null) {
+      e.preventDefault();
+    }
+    if (this.state.mode == 'settings') {
+      this.setState({ mode: 'game' });
+    } else {
+      this.setState({ mode: 'settings' });
+    }
+  }
+
+  public toggleSetting(e, setting) {
+    if (e != null) {
+      e.preventDefault();
+    }
+    const vals = { ...this.state.settings };
+    vals[setting] = !vals[setting];
+    this.setState({ settings: vals });
+    Settings.save(vals);
+  }
+
   public nextGame(e) {
     if (e != null) {
       e.preventDefault();
@@ -236,27 +263,6 @@ export class Game extends React.Component {
           this.refresh();
         }, 2000);
       });
-  }
-
-  public toggleSettingsView(e) {
-    if (e != null) {
-      e.preventDefault();
-    }
-    if (this.state.mode == 'settings') {
-      this.setState({ mode: 'game' });
-    } else {
-      this.setState({ mode: 'settings' });
-    }
-  }
-
-  public toggleSetting(e, setting) {
-    if (e != null) {
-      e.preventDefault();
-    }
-    const vals = { ...this.state.settings };
-    vals[setting] = !vals[setting];
-    this.setState({ settings: vals });
-    Settings.save(vals);
   }
 
   public endGame() {
@@ -339,8 +345,8 @@ export class Game extends React.Component {
           roundStartedAt={this.state.game.created_at}
           timerDurationMs={this.state.game.timer_duration_ms}
           handleExpiration={() => {
-            this.state.timerExpired = true;
-            if (this.state.game.enforce_timer) {
+            if (this.state.game.enforce_timer && !this.state.timerExpired) {
+              this.state.timerExpired = true;
               this.endGame();
             }
           }}
