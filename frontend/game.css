@@ -39,6 +39,9 @@
 
 .cardsInHand .cell {
   margin: 10px;
+  cursor: pointer;
+  width: 175px;
+  height: 125px;
 }
 
 #status-line {
@@ -112,16 +115,19 @@
   flex-direction: column;
 }
 
-.header .word {
-  font-weight: bold;
-}
-
 .dark-mode .header .word {
   color: rgb(202, 202, 202);
 }
 
 .letter {
-  font-size: 4vw;
+  font-size: 3em;
+}
+
+.word {
+  text-align: center;
+  display: inline-block;
+  font-size: 1.5em;
+  font-weight: bold;
 }
 
 .dark-mode .letter {
@@ -144,19 +150,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--width));
   grid-gap: 1em;
-  height: 600px;
   border-bottom: 1px rgb(112, 112, 112) solid;
   padding-bottom: 1em;
 }
 
 .board .hidden-word {
   cursor: pointer;
-}
-
-.cell .word {
-  text-align: center;
-  display: inline-block;
-  font-size: 3.5vw;
 }
 
 .cell {

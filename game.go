@@ -70,7 +70,7 @@ type Game struct {
 	Words     []string  `json:"words"`
 	Deck      []int     `json:"deck"`
 	Score     int       `json:"score"`
-	Won       bool      `json:"won"`
+	Won       bool      `json:"won"` // TODO: Update name to "gameOver"
 	GameOptions
 }
 
@@ -114,6 +114,7 @@ func (g *Game) StateID() string {
 	return fmt.Sprintf("%019d", g.UpdatedAt.UnixNano())
 }
 
+// TODO: Test some of this stuff
 func (g *Game) checkWinningCondition() {
 	score := 0
 	for _, r := range g.Revealed {
@@ -123,7 +124,28 @@ func (g *Game) checkWinningCondition() {
 		score++
 	}
 	g.Score = score
-	g.Won = score == getTotalSpaces(g.BoardSize)
+
+	playedCardCount := g.DeckIndex - len(g.PlayerCards)
+	g.Won = playedCardCount == getTotalSpaces(g.BoardSize)
+}
+
+func (g *Game) Discard(playerID string, idx int) error {
+	if g.Won {
+		return nil
+	}
+
+	cardPlayerID := g.PlayerCards[idx]
+	if cardPlayerID != playerID {
+		return fmt.Errorf("index %d is not owned by player %s", idx, playerID)
+	}
+
+	g.UpdatedAt = time.Now()
+
+	delete(g.PlayerCards, idx)
+	err := g.Draw(playerID)
+
+	g.checkWinningCondition()
+	return err
 }
 
 func (g *Game) Draw(playerID string) error {
@@ -155,6 +177,8 @@ func (g *Game) Draw(playerID string) error {
 
 		g.PlayerCards[card] = playerID
 	}
+
+	g.checkWinningCondition()
 	return nil
 }
 
@@ -172,11 +196,12 @@ func (g *Game) Guess(idx int, playerID string) error {
 
 	g.UpdatedAt = time.Now()
 	g.Revealed[idx] = true
-	g.checkWinningCondition()
 
 	// "play their card" and draw a new one
 	delete(g.PlayerCards, idx)
 	g.Draw(playerID)
+
+	g.checkWinningCondition()
 
 	return nil
 }

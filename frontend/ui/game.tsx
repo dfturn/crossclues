@@ -4,12 +4,6 @@ import { Settings, SettingsButton, SettingsPanel } from '~/ui/settings';
 import Timer from '~/ui/timer';
 import { ClientJS } from 'clientjs';
 
-const defaultFavicon =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAA8SURBVHgB7dHBDQAgCAPA1oVkBWdzPR84kW4AD0LCg36bXJqUcLL2eVY/EEwDFQBeEfPnqUpkLmigAvABK38Grs5TfaMAAAAASUVORK5CYII=';
-const blueTurnFavicon =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAmSURBVHgB7cxBAQAABATBo5ls6ulEiPt47ASYqJ6VIWUiICD4Ehyi7wKv/xtOewAAAABJRU5ErkJggg==';
-const redTurnFavicon =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAmSURBVHgB7cwxAQAACMOwgaL5d4EiELGHoxGQGnsVaIUICAi+BAci2gJQFUhklQAAAABJRU5ErkJggg==';
 export class Game extends React.Component {
   constructor(props) {
     super(props);
@@ -19,6 +13,8 @@ export class Game extends React.Component {
       settings: Settings.load(),
       mode: 'game',
       playerID: new ClientJS().getFingerprint().toString(),
+      gameOver: false,
+      timerExpired: false,
     };
   }
 
@@ -45,19 +41,16 @@ export class Game extends React.Component {
   public componentDidMount(prevProps, prevState) {
     window.addEventListener('keydown', this.handleKeyDown.bind(this));
     this.setDarkMode(prevProps, prevState);
-    this.setTurnIndicatorFavicon(prevProps, prevState);
     this.refresh();
   }
 
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.handleKeyDown.bind(this));
-    document.getElementById('favicon').setAttribute('href', defaultFavicon);
     this.setState({ mounted: false });
   }
 
   public componentDidUpdate(prevProps, prevState) {
     this.setDarkMode(prevProps, prevState);
-    this.setTurnIndicatorFavicon(prevProps, prevState);
   }
 
   private setDarkMode(prevProps, prevState) {
@@ -69,19 +62,14 @@ export class Game extends React.Component {
     }
   }
 
-  private setTurnIndicatorFavicon(prevProps, prevState) {
+  private refreshEog() {
     if (
-      prevState?.game?.won !== this.state.game?.won ||
-      prevState?.game?.round !== this.state.game?.round ||
-      prevState?.game?.state_id !== this.state.game?.state_id
+      !this.state.gameOver &&
+      this.state.game != null &&
+      this.state.game.won
     ) {
-      if (this.state.game?.won) {
-        document.getElementById('favicon').setAttribute('href', defaultFavicon);
-      } else {
-        document
-          .getElementById('favicon')
-          .setAttribute('href', blueTurnFavicon);
-      }
+      this.state.gameOver = true;
+      this.endGame();
     }
   }
 
@@ -114,6 +102,8 @@ export class Game extends React.Component {
     if (!this.state.mounted) {
       return;
     }
+
+    this.refreshEog();
 
     let state_id = '';
     if (this.state.game && this.state.game.state_id) {
@@ -156,6 +146,33 @@ export class Game extends React.Component {
       })
       .then(({ data }) => {
         this.setState({ game: data });
+      })
+      .finally(() => {
+        setTimeout(() => {
+          this.refresh();
+        }, 2000);
+      });
+  }
+
+  public discard(e, idx) {
+    e.preventDefault();
+    if (this.state.game.won) {
+      return; // ignore if game is over
+    }
+
+    axios
+      .post('/discard', {
+        game_id: this.state.game.id,
+        index: idx,
+        player_id: this.state.playerID,
+      })
+      .then(({ data }) => {
+        this.setState({ game: data });
+      })
+      .finally(() => {
+        setTimeout(() => {
+          this.refresh();
+        }, 2000);
       });
   }
 
@@ -188,10 +205,14 @@ export class Game extends React.Component {
   }
 
   public nextGame(e) {
-    e.preventDefault();
+    if (e != null) {
+      e.preventDefault();
+    }
     // Ask for confirmation when current game hasn't finished
     let allowNextGame =
-      this.state.game.won || confirm('Do you really want to start a new game?');
+      this.state.game.won ||
+      this.state.timerExpired ||
+      confirm('Do you really want to start a new game?');
     if (!allowNextGame) {
       return;
     }
@@ -208,7 +229,12 @@ export class Game extends React.Component {
         board_size: this.state.game.board_size,
       })
       .then(({ data }) => {
-        this.setState({ game: data });
+        this.setState({ game: data, gameOver: false, timerExpired: false });
+      })
+      .finally(() => {
+        setTimeout(() => {
+          this.refresh();
+        }, 2000);
       });
   }
 
@@ -233,7 +259,41 @@ export class Game extends React.Component {
     Settings.save(vals);
   }
 
-  public endGame() {}
+  public endGame() {
+    const messages = [
+      "Oh dear, clearly you don't understand each other at all.",
+      'You have a basic understanding of how the other players think!',
+      'Wow! You have a strong connection!',
+      'A perfect score! You must be telepathically linked!',
+    ];
+
+    let boardSizeIndex = this.state.game.board_size - 3;
+    let score = parseInt(this.state.game.score);
+
+    const thresholds = [
+      [0, 4, 6, 8],
+      [0, 8, 12, 15],
+      [0, 12, 17, 23],
+    ];
+
+    let threshold = thresholds[boardSizeIndex];
+
+    var messageIndex = threshold.length - 1;
+    for (var i = 0; i < threshold.length; i++) {
+      let thresholdVal = threshold[i];
+      if (score < thresholdVal) {
+        messageIndex = i - 1;
+        break;
+      }
+    }
+
+    let message = messages[messageIndex] + '\nPlay another one?';
+
+    let startNewGame = confirm(message);
+    if (startNewGame) {
+      this.nextGame(null);
+    }
+  }
 
   render() {
     if (!this.state.game) {
@@ -279,7 +339,10 @@ export class Game extends React.Component {
           roundStartedAt={this.state.game.created_at}
           timerDurationMs={this.state.game.timer_duration_ms}
           handleExpiration={() => {
-            this.state.game.enforce_timer && this.endGame();
+            this.state.timerExpired = true;
+            if (this.state.game.enforce_timer) {
+              this.endGame();
+            }
           }}
           freezeTimer={!!this.state.game.won}
         />
@@ -374,8 +437,14 @@ export class Game extends React.Component {
 
         <div className={'cardsInHand'}>
           {cardsInHand.map((w, idx) => (
-            <div key={idx} className={'cell revealed'}>
-              <span className="word">{this.getIndexName(w)}</span>
+            <div
+              key={idx}
+              className={'cell revealed'}
+              onClick={(e) => this.discard(e, parseInt(w))}
+            >
+              <span className="letter" role="button">
+                {this.getIndexName(parseInt(w))}
+              </span>
             </div>
           ))}
         </div>
