@@ -142,6 +142,10 @@
   color: rgb(29, 29, 29);
 }
 
+.dark-mode .cell.revealed .letter {
+  color: rgb(29, 29, 29);
+}
+
 .cell.disabled {
   cursor: not-allowed !important;
 }
