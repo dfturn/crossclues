@@ -158,6 +158,10 @@ export class Game extends React.Component {
   }
 
   public discard(e, idx) {
+    if (!e) var e = window.event;
+    e.cancelBubble = true;
+    if (e.stopPropagation) e.stopPropagation();
+
     e.preventDefault();
     if (this.state.game.won) {
       return; // ignore if game is over
@@ -433,6 +437,8 @@ export class Game extends React.Component {
                   <span className="word" role="button">
                     {this.state.game.revealed[revealedIdx]
                       ? this.getIndexName(revealedIdx)
+                      : revealedIdx in this.state.game.discards
+                      ? 'X'
                       : ''}
                   </span>
                 </div>
@@ -446,11 +452,16 @@ export class Game extends React.Component {
             <div
               key={idx}
               className={'cell revealed'}
-              onClick={(e) => this.discard(e, parseInt(w))}
+              onClick={(e) => this.guess(e, parseInt(w))}
             >
               <span className="letter" role="button">
                 {this.getIndexName(parseInt(w))}
               </span>
+
+              <button
+                className="close"
+                onClick={(e) => this.discard(e, parseInt(w))}
+              ></button>
             </div>
           ))}
         </div>

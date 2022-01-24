@@ -19,6 +19,7 @@ type GameState struct {
 	WordSet     []string       `json:"word_set"`
 	DeckIndex   int            `json:"deck_index"`
 	PlayerCards map[int]string `json:"player_cards"`
+	Discards    map[int]string `json:"discards"`
 }
 
 func (gs GameState) anyRevealed() bool {
@@ -37,6 +38,7 @@ func randomState(words []string, boardSize int) GameState {
 		WordSet:     words,
 		DeckIndex:   0,
 		PlayerCards: make(map[int]string),
+		Discards:    make(map[int]string),
 	}
 }
 
@@ -59,6 +61,7 @@ func nextGameState(state GameState, boardSize int) GameState {
 	state.Revealed = make([]bool, getTotalSpaces(boardSize))
 	state.DeckIndex = 0
 	state.PlayerCards = make(map[int]string)
+	state.Discards = make(map[int]string)
 	return state
 }
 
@@ -94,6 +97,14 @@ func (g *Game) ClientCopy(playerID string) Game {
 			continue
 		}
 		newGame.PlayerCards[key] = val
+	}
+
+	newGame.Discards = make(map[int]string)
+	for key, val := range g.Discards {
+		if val != playerID {
+			continue
+		}
+		newGame.Discards[key] = val
 	}
 
 	newGame.ID = g.ID
@@ -141,6 +152,7 @@ func (g *Game) Discard(playerID string, idx int) error {
 
 	g.UpdatedAt = time.Now()
 
+	g.Discards[idx] = playerID
 	delete(g.PlayerCards, idx)
 	err := g.Draw(playerID)
 

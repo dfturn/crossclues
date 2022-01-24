@@ -38,6 +38,7 @@
 }
 
 .cardsInHand .cell {
+  position: relative;
   margin: 10px;
   cursor: pointer;
   width: 175px;
@@ -121,6 +122,9 @@
 
 .letter {
   font-size: 3em;
+  vertical-align: middle;
+  display: inline-block;
+  line-height: normal;
 }
 
 .word {
@@ -299,4 +303,42 @@
 
 .toggle-state {
   font-weight: bold;
+}
+
+.close {
+  top: 0;
+  right: 0;
+  border: none;
+  color: inherit;
+  border-radius: 50%;
+  background: transparent;
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  opacity: 0.6;
+}
+.close:focus,
+.close:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.5);
+}
+.close:active {
+  background: rgba(128, 128, 128, 0.9);
+}
+/* tines of the X */
+.close::before,
+.close::after {
+  content: ' ';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 20px;
+  width: 4px;
+  background-color: currentColor;
+}
+.close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
