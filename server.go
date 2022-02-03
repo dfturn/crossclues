@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/jbowens/dictionary"
 )
 
@@ -26,8 +27,9 @@ func init() {
 }
 
 type Server struct {
-	Server http.Server
-	Store  Store
+	Server   http.Server
+	Upgrader websocket.Upgrader
+	Store    Store
 
 	tpl         *template.Template
 	gameIDWords []string
@@ -50,19 +52,21 @@ type Store interface {
 type GameHandle struct {
 	store Store
 
-	mu        sync.Mutex
-	updated   chan struct{} // closed when the game is updated
-	replaced  chan struct{} // closed when the game has been replaced
-	marshaled []byte
-	g         *Game
+	mu         sync.Mutex
+	websockets map[string]*websocket.Conn
+	updated    chan struct{} // closed when the game is updated
+	replaced   chan struct{} // closed when the game has been replaced
+	marshaled  []byte
+	g          *Game
 }
 
 func newHandle(g *Game, s Store) *GameHandle {
 	gh := &GameHandle{
-		store:    s,
-		g:        g,
-		updated:  make(chan struct{}),
-		replaced: make(chan struct{}),
+		store:      s,
+		g:          g,
+		updated:    make(chan struct{}),
+		replaced:   make(chan struct{}),
+		websockets: make(map[string]*websocket.Conn),
 	}
 	err := s.Save(g)
 	if err != nil {
@@ -230,6 +234,28 @@ func (s *Server) handleDiscard(rw http.ResponseWriter, req *http.Request) {
 	writeGameForPlayer(rw, gh, request.PlayerID)
 }
 
+func (s *Server) handleWebsocket(rw http.ResponseWriter, req *http.Request) {
+	relativePath := strings.TrimPrefix(req.URL.Path, "/websocket/")
+	pathComponents := strings.Split(relativePath, "/")
+	if len(pathComponents) != 2 {
+		http.Error(rw, "Incorrect number of path parameters", 400)
+		return
+	}
+	gameID := pathComponents[0]
+	playerID := pathComponents[1]
+	gh := s.getGame(gameID)
+
+	c, err := s.Upgrader.Upgrade(rw, req, nil)
+	if err != nil {
+		http.Error(rw, err.Error(), 400)
+		return
+	}
+	gh.update(func(g *Game) bool {
+		gh.websockets[playerID] = c
+		return true
+	})
+}
+
 func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
 	var request struct {
 		GameID          string   `json:"game_id"`
@@ -390,6 +416,7 @@ func (s *Server) Start(games map[string]*Game) error {
 	s.mux.HandleFunc("/game-state", s.handleGameState)
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("frontend/dist"))))
 	s.mux.HandleFunc("/", s.handleIndex)
+	s.mux.HandleFunc("/websocket/", s.handleWebsocket)
 
 	bootstrapPW := os.Getenv("BOOTSTRAPPW")
 	// If no bootstrap PW is set, don't expose the checkpoint endpoint so we
@@ -476,6 +503,19 @@ func basicAuth(handler http.Handler, password, realm string) http.Handler {
 func writeGameForPlayer(rw http.ResponseWriter, gh *GameHandle, playerID string) {
 	gameCopy := gh.g.ClientCopy(playerID)
 	writeJSON(rw, gameCopy)
+
+	for key, val := range gh.websockets {
+		gameCopy = gh.g.ClientCopy(key)
+		data, err := json.Marshal(gameCopy)
+		if err == nil {
+			val.WriteMessage(1, data)
+		}
+	}
+}
+
+func writeBytes(rw http.ResponseWriter, data []byte) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Write(data)
 }
 
 func writeJSON(rw http.ResponseWriter, resp interface{}) {
@@ -485,6 +525,5 @@ func writeJSON(rw http.ResponseWriter, resp interface{}) {
 		return
 	}
 
-	rw.Header().Set("Content-Type", "application/json")
-	rw.Write(j)
+	writeBytes(rw, j)
 }

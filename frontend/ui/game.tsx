@@ -41,12 +41,68 @@ export class Game extends React.Component {
   public componentDidMount(prevProps, prevState) {
     window.addEventListener('keydown', this.handleKeyDown.bind(this));
     this.setDarkMode(prevProps, prevState);
+    this.pollGameState();
+
     this.refresh();
+  }
+
+  public pollGameState() {
+    let state_id = '';
+    if (this.state.game && this.state.game.state_id) {
+      state_id = this.state.game.state_id;
+    }
+
+    axios
+      .post('/game-state', {
+        game_id: this.props.gameID,
+        state_id: state_id,
+        player_id: this.state.playerID,
+      })
+      .then(({ data }) => {
+        this.setState((oldState) => {
+          const stateToUpdate = { game: data };
+          return stateToUpdate;
+        });
+      })
+      .finally(() => {
+        setTimeout(() => {
+          this.pollGameState();
+        }, 2000);
+      });
+  }
+
+  public connectToWs() {
+    if (this.state.game == null) {
+      return;
+    }
+
+    if (this.wsConn != null) {
+      return;
+    }
+
+    var getUrl = window.location;
+    let wsProtocol = getUrl.protocol.endsWith('s:') ? 'wss://' : 'ws://';
+    let wsPath =
+      wsProtocol +
+      getUrl.host +
+      '/websocket/' +
+      this.state.game.id +
+      '/' +
+      this.state.playerID;
+
+    this.wsConn = new WebSocket(wsPath);
+
+    this.wsConn.onmessage = function (event) {
+      let gameState = JSON.parse(event.data);
+      this.setState({ game: gameState });
+      this.refresh();
+    }.bind(this);
   }
 
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.handleKeyDown.bind(this));
     this.setState({ mounted: false });
+    this.wsConn.close();
   }
 
   public componentDidUpdate(prevProps, prevState) {
@@ -103,30 +159,8 @@ export class Game extends React.Component {
       return;
     }
 
+    this.connectToWs();
     this.refreshEog();
-
-    let state_id = '';
-    if (this.state.game && this.state.game.state_id) {
-      state_id = this.state.game.state_id;
-    }
-
-    axios
-      .post('/game-state', {
-        game_id: this.props.gameID,
-        state_id: state_id,
-        player_id: this.state.playerID,
-      })
-      .then(({ data }) => {
-        this.setState((oldState) => {
-          const stateToUpdate = { game: data };
-          return stateToUpdate;
-        });
-      })
-      .finally(() => {
-        setTimeout(() => {
-          this.refresh();
-        }, 2000);
-      });
   }
 
   public guess(e, idx) {

@@ -9,6 +9,7 @@ require (
 	github.com/cockroachdb/redact v1.0.9 // indirect
 	github.com/getsentry/raven-go v0.2.0 // indirect
 	github.com/golang/snappy v0.0.2 // indirect
+	github.com/gorilla/websocket v1.4.2
 	github.com/jbowens/dictionary v0.0.0-20160629041621-229cf68df1a6
 	github.com/kr/pretty v0.2.1
 	github.com/kr/text v0.2.0 // indirect

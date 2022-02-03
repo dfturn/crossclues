@@ -19,6 +19,7 @@ import (
 
 	"github.com/cockroachdb/pebble"
 	crossclues "github.com/dfturn/crossclues"
+	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 )
 
@@ -106,7 +107,8 @@ func main() {
 		Server: http.Server{
 			Addr: ":" + listenPort,
 		},
-		Store: ps,
+		Upgrader: websocket.Upgrader{},
+		Store:    ps,
 	}
 	if err := server.Start(games); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
