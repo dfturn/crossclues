@@ -2,20 +2,32 @@ import * as React from 'react';
 import axios from 'axios';
 import { Settings, SettingsButton, SettingsPanel } from '~/ui/settings';
 import Timer from '~/ui/timer';
-import { ClientJS } from 'clientjs';
+import websocket from '~/ui/websocket';
 
 export class Game extends React.Component {
   constructor(props) {
     super(props);
+
     this.state = {
       game: null,
       mounted: true,
       settings: Settings.load(),
       mode: 'game',
-      playerID: new ClientJS().getFingerprint().toString(),
       gameOver: false,
       timerExpired: false,
+      playerID: this.props.playerID,
+      boardSize: null,
     };
+
+    if (websocket.websocket == null) {
+      websocket.connect(this.props.gameID, this.state.playerID);
+    }
+
+    websocket.websocket.onmessage = function (event) {
+      let gameState = JSON.parse(event.data);
+      this.setState({ game: gameState });
+      this.refresh();
+    }.bind(this);
   }
 
   public extraClasses() {
@@ -41,6 +53,7 @@ export class Game extends React.Component {
   public componentDidMount(prevProps, prevState) {
     window.addEventListener('keydown', this.handleKeyDown.bind(this));
     this.setDarkMode(prevProps, prevState);
+    // TODO: Make the hand refresh immediately
     this.pollGameState();
 
     this.refresh();
@@ -52,11 +65,12 @@ export class Game extends React.Component {
       state_id = this.state.game.state_id;
     }
 
+    // TODO: Handle game state error
     axios
       .post('/game-state', {
         game_id: this.props.gameID,
         state_id: state_id,
-        player_id: this.state.playerID,
+        player_id: this.props.playerID,
       })
       .then(({ data }) => {
         this.setState((oldState) => {
@@ -71,38 +85,10 @@ export class Game extends React.Component {
       });
   }
 
-  public connectToWs() {
-    if (this.state.game == null) {
-      return;
-    }
-
-    if (this.wsConn != null) {
-      return;
-    }
-
-    var getUrl = window.location;
-    let wsProtocol = getUrl.protocol.endsWith('s:') ? 'wss://' : 'ws://';
-    let wsPath =
-      wsProtocol +
-      getUrl.host +
-      '/websocket/' +
-      this.state.game.id +
-      '/' +
-      this.state.playerID;
-
-    this.wsConn = new WebSocket(wsPath);
-
-    this.wsConn.onmessage = function (event) {
-      let gameState = JSON.parse(event.data);
-      this.setState({ game: gameState });
-      this.refresh();
-    }.bind(this);
-  }
-
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.handleKeyDown.bind(this));
     this.setState({ mounted: false });
-    this.wsConn.close();
+    websocket.websocket.close();
   }
 
   public componentDidUpdate(prevProps, prevState) {
@@ -132,7 +118,7 @@ export class Game extends React.Component {
   /* Gets info about current score so screen readers can describe how many words
    * remain for each team. */
   private getScoreAriaLabel() {
-    return this.remaining().toString() + ' words remaining.';
+    return this.score().toString() + ' words remaining.';
   }
 
   // Determines value of aria-disabled attribute to tell screen readers if word can be clicked.
@@ -159,7 +145,6 @@ export class Game extends React.Component {
       return;
     }
 
-    this.connectToWs();
     this.refreshEog();
   }
 
@@ -220,7 +205,7 @@ export class Game extends React.Component {
       });
   }
 
-  public remaining() {
+  public score() {
     var count = 0;
     for (var i = 0; i < this.state.game.revealed.length; i++) {
       if (this.state.game.revealed[i]) {
@@ -228,6 +213,23 @@ export class Game extends React.Component {
       }
     }
     return count;
+  }
+
+  public discardCount() {
+    return this.state.game.discard_count;
+  }
+
+  public deckSize() {
+    return this.state.game.revealed.length - this.state.game.deck_index;
+  }
+
+  public handSize() {
+    return (
+      this.state.game.revealed.length -
+      this.score() -
+      this.discardCount() -
+      this.deckSize()
+    );
   }
 
   public getRowName(row) {
@@ -269,6 +271,21 @@ export class Game extends React.Component {
     Settings.save(vals);
   }
 
+  public handleNumberSetting(e, setting, num) {
+    if (e != null) {
+      e.preventDefault();
+    }
+    const vals = { ...this.state.settings };
+    vals[setting] = num;
+    this.setState({ settings: vals });
+    Settings.save(vals);
+
+    // TODO: cleanup and genericize
+    if (setting == 'boardSize') {
+      this.state.boardSize = num;
+    }
+  }
+
   public nextGame(e) {
     if (e != null) {
       e.preventDefault();
@@ -287,11 +304,11 @@ export class Game extends React.Component {
         game_id: this.state.game.id,
         player_id: this.state.playerID,
         word_set: this.state.game.word_set,
-        create_new: true,
+        create_new: false,
         timer_duration_ms: this.state.game.timer_duration_ms,
         enforce_timer: this.state.game.enforce_timer,
         hand_size: this.state.game.hand_size,
-        board_size: this.state.game.board_size,
+        board_size: this.state.boardSize ?? this.state.game.board_size,
       })
       .then(({ data }) => {
         this.setState({ game: data, gameOver: false, timerExpired: false });
@@ -308,6 +325,7 @@ export class Game extends React.Component {
       "Oh dear, clearly you don't understand each other at all.",
       'You have a basic understanding of how the other players think!',
       'Wow! You have a strong connection!',
+      'An almost perfect score! You might be telepathically linked!',
       'A perfect score! You must be telepathically linked!',
     ];
 
@@ -315,9 +333,9 @@ export class Game extends React.Component {
     let score = parseInt(this.state.game.score);
 
     const thresholds = [
-      [0, 4, 6, 8],
-      [0, 8, 12, 15],
-      [0, 12, 17, 23],
+      [0, 4, 6, 8, 9],
+      [0, 8, 12, 15, 16],
+      [0, 12, 17, 23, 25],
     ];
 
     let threshold = thresholds[boardSizeIndex];
@@ -348,7 +366,11 @@ export class Game extends React.Component {
         <SettingsPanel
           toggleView={(e) => this.toggleSettingsView(e)}
           toggle={(e, setting) => this.toggleSetting(e, setting)}
+          handleNumberSetting={(e, setting, num) =>
+            this.handleNumberSetting(e, setting, num)
+          }
           values={this.state.settings}
+          game={this.state.game}
         />
       );
     }
@@ -367,15 +389,6 @@ export class Game extends React.Component {
     let letterWords = this.state.game.words.filter((w, idx) => {
       return idx >= this.state.game.words.length / 2;
     });
-
-    let shareLink = (
-      <div id="share">
-        Send this link to friends:&nbsp;
-        <a className="url" href={window.location.href}>
-          {window.location.href}
-        </a>
-      </div>
-    );
 
     const timer = !!this.state.game.timer_duration_ms && (
       <div id="timer">
@@ -409,15 +422,23 @@ export class Game extends React.Component {
     return (
       <div id="game-view" className={'player' + this.extraClasses()}>
         <div id="infoContent">
-          {shareLink}
           {timer}
 
           <div id="remaining" role="img">
+            <span className={'remaining'}>{'Score: ' + this.score()}</span>
+            <br></br>
             <span className={'remaining'}>
-              {'Score: ' +
-                this.remaining() +
-                ' / ' +
-                this.state.game.revealed.length}
+              {'Discards: ' + this.discardCount()}
+            </span>
+          </div>
+
+          <div id="remaining" role="img">
+            <span className={'remaining'}>
+              {'Deck Size: ' + this.deckSize()}
+            </span>
+            <br></br>
+            <span className={'remaining'}>
+              {'Hand Cards: ' + this.handSize()}
             </span>
           </div>
 

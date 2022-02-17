@@ -68,11 +68,23 @@ func newHandle(g *Game, s Store) *GameHandle {
 		replaced:   make(chan struct{}),
 		websockets: make(map[string]*websocket.Conn),
 	}
+
 	err := s.Save(g)
 	if err != nil {
 		log.Printf("Unable to write updated game %q to disk: %s\n", gh.g.ID, err)
 	}
+
 	return gh
+}
+
+func (gh *GameHandle) getPlayerIDs() []string {
+	keys := make([]string, len(gh.websockets))
+	i := 0
+	for k := range gh.websockets {
+		keys[i] = k
+		i++
+	}
+	return keys
 }
 
 func (gh *GameHandle) update(fn func(*Game) bool) {
@@ -126,6 +138,19 @@ func (gh *GameHandle) MarshalJSON() ([]byte, error) {
 	return gh.marshaled, err
 }
 
+func (gh *GameHandle) wsReadLoop(playerID string, c *websocket.Conn) {
+	for {
+		if _, _, err := c.NextReader(); err != nil {
+			c.Close()
+			gh.update(func(g *Game) bool {
+				delete(gh.websockets, playerID)
+				return true
+			})
+			break
+		}
+	}
+}
+
 func (s *Server) getGame(gameID string) *GameHandle {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -134,9 +159,7 @@ func (s *Server) getGame(gameID string) *GameHandle {
 	if ok {
 		return gh
 	}
-	gh = newHandle(newGame(gameID, randomState(s.defaultWords, DefaultBoardSize), GameOptions{}), s.Store)
-	s.games[gameID] = gh
-	return gh
+	return nil
 }
 
 // POST /game-state
@@ -153,6 +176,10 @@ func (s *Server) handleGameState(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	gh := s.getGame(body.GameID)
+	if gh == nil {
+		http.Error(rw, "Game ID not found", 404)
+		return
+	}
 
 	gh.update(func(g *Game) bool {
 		err = g.Draw(body.PlayerID)
@@ -169,12 +196,12 @@ func (s *Server) handleGameState(rw http.ResponseWriter, req *http.Request) {
 	case <-req.Context().Done():
 		return
 	case <-time.After(15 * time.Second):
-		writeGameForPlayer(rw, gh, body.PlayerID)
+		writeGameForPlayer(rw, gh, body.PlayerID, false)
 	case <-updated:
-		writeGameForPlayer(rw, gh, body.PlayerID)
+		writeGameForPlayer(rw, gh, body.PlayerID, false)
 	case <-replaced:
 		gh = s.getGame(body.GameID)
-		writeGameForPlayer(rw, gh, body.PlayerID)
+		writeGameForPlayer(rw, gh, body.PlayerID, false)
 	}
 }
 
@@ -193,6 +220,10 @@ func (s *Server) handleGuess(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	gh := s.getGame(request.GameID)
+	if gh == nil {
+		http.Error(rw, "Game ID not found", 404)
+		return
+	}
 
 	var err error
 	gh.update(func(g *Game) bool {
@@ -203,7 +234,7 @@ func (s *Server) handleGuess(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, err.Error(), 400)
 		return
 	}
-	writeGameForPlayer(rw, gh, request.PlayerID)
+	writeGameForPlayer(rw, gh, request.PlayerID, true)
 }
 
 // POST /discard
@@ -221,6 +252,10 @@ func (s *Server) handleDiscard(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	gh := s.getGame(request.GameID)
+	if gh == nil {
+		http.Error(rw, "Game ID not found", 404)
+		return
+	}
 
 	var err error
 	gh.update(func(g *Game) bool {
@@ -231,7 +266,7 @@ func (s *Server) handleDiscard(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, err.Error(), 400)
 		return
 	}
-	writeGameForPlayer(rw, gh, request.PlayerID)
+	writeGameForPlayer(rw, gh, request.PlayerID, true)
 }
 
 func (s *Server) handleWebsocket(rw http.ResponseWriter, req *http.Request) {
@@ -241,19 +276,38 @@ func (s *Server) handleWebsocket(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Incorrect number of path parameters", 400)
 		return
 	}
-	gameID := pathComponents[0]
-	playerID := pathComponents[1]
-	gh := s.getGame(gameID)
 
 	c, err := s.Upgrader.Upgrade(rw, req, nil)
 	if err != nil {
 		http.Error(rw, err.Error(), 400)
 		return
 	}
+
+	gameID := pathComponents[0]
+	playerID := pathComponents[1]
+
+	var gh *GameHandle
+	func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		var ok bool
+		gh, ok = s.games[gameID]
+		if !ok {
+			// create a temporary game so they can connect to it
+			gh = newHandle(nil, s.Store)
+			s.games[gameID] = gh
+		}
+	}()
+
 	gh.update(func(g *Game) bool {
 		gh.websockets[playerID] = c
 		return true
 	})
+
+	go gh.wsReadLoop(playerID, c)
+
+	sendGameThroughWs(gh)
 }
 
 func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
@@ -308,11 +362,11 @@ func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
 
 		var ok bool
 		gh, ok = s.games[request.GameID]
-		if !ok {
+		if !ok || request.CreateNew || gh == nil {
 			// no game exists, create for the first time
 			gh = newHandle(newGame(request.GameID, randomState(words, opts.BoardSize), opts), s.Store)
 			s.games[request.GameID] = gh
-		} else if request.CreateNew {
+		} else {
 			replacedCh := gh.replaced
 
 			previousGame := gh.g
@@ -334,7 +388,7 @@ func (s *Server) handleNextGame(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}()
-	writeGameForPlayer(rw, gh, request.PlayerID)
+	writeGameForPlayer(rw, gh, request.PlayerID, false)
 }
 
 type statsResponse struct {
@@ -500,12 +554,29 @@ func basicAuth(handler http.Handler, password, realm string) http.Handler {
 	})
 }
 
-func writeGameForPlayer(rw http.ResponseWriter, gh *GameHandle, playerID string) {
-	gameCopy := gh.g.ClientCopy(playerID)
+func writeGameForPlayer(rw http.ResponseWriter, gh *GameHandle, playerID string, notify bool) {
+	playerIDs := gh.getPlayerIDs()
+	gameCopy := gh.g.ClientCopy(playerID, playerIDs)
 	writeJSON(rw, gameCopy)
 
+	if notify {
+		sendGameThroughWs(gh)
+	}
+}
+
+func sendGameThroughWs(gh *GameHandle) {
+	playerIDs := gh.getPlayerIDs()
 	for key, val := range gh.websockets {
-		gameCopy = gh.g.ClientCopy(key)
+		if val == nil {
+			continue
+		}
+
+		gameCopy := Game{}
+		if gh.g != nil {
+			gameCopy = gh.g.ClientCopy(key, playerIDs)
+		} else {
+			gameCopy.PlayerIDs = playerIDs
+		}
 		data, err := json.Marshal(gameCopy)
 		if err == nil {
 			val.WriteMessage(1, data)

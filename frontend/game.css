@@ -109,6 +109,11 @@
   text-align: center;
 }
 
+.playerIds {
+  display: flex;
+  flex-direction: column;
+}
+
 .header {
   display: flex;
   align-items: center;

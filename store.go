@@ -57,6 +57,10 @@ func (ps *PebbleStore) DeleteExpired(expiry time.Time) error {
 
 // Save saves the game to persistent storage.
 func (ps *PebbleStore) Save(g *Game) error {
+	if g == nil {
+		return nil
+	}
+
 	k, v, err := gameKV(g)
 	if err != nil {
 		return fmt.Errorf("trySave: %w", err)
@@ -71,6 +75,10 @@ func (ps *PebbleStore) Save(g *Game) error {
 
 // Delete removes a game from persistent storage.
 func (ps *PebbleStore) Delete(g *Game) error {
+	if g == nil {
+		return nil
+	}
+
 	k := mkkey(g.CreatedAt.Unix(), g.ID)
 	err := ps.DB.Delete(k, nil)
 	if err != nil {

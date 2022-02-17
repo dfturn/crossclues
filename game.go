@@ -67,14 +67,20 @@ func nextGameState(state GameState, boardSize int) GameState {
 
 type Game struct {
 	GameState
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Words     []string  `json:"words"`
-	Deck      []int     `json:"deck"`
-	Score     int       `json:"score"`
-	Won       bool      `json:"won"` // TODO: Update name to "gameOver"
+	ID           string    `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Words        []string  `json:"words"`
+	Deck         []int     `json:"deck"`
+	Score        int       `json:"score"`
+	DiscardCount int       `json:"discard_count"`
+	Won          bool      `json:"won"` // TODO: Update name to "gameOver"
 	GameOptions
+	GameClientInfo
+}
+
+type GameClientInfo struct {
+	PlayerIDs []string `json:"player_ids"`
 }
 
 type GameOptions struct {
@@ -84,8 +90,10 @@ type GameOptions struct {
 	BoardSize       int   `json:"board_size,omitempty"`
 }
 
-func (g *Game) ClientCopy(playerID string) Game {
+func (g *Game) ClientCopy(playerID string, playerIds []string) Game {
 	var newGame Game
+
+	newGame.PlayerIDs = playerIds
 
 	newGame.Seed = g.Seed
 	newGame.PermIndex = g.PermIndex
@@ -112,6 +120,7 @@ func (g *Game) ClientCopy(playerID string) Game {
 	newGame.UpdatedAt = g.UpdatedAt
 	newGame.Words = append(newGame.Words, g.Words...)
 	newGame.Score = g.Score
+	newGame.DiscardCount = g.DiscardCount
 	newGame.Won = g.Won
 
 	newGame.TimerDurationMS = g.TimerDurationMS
@@ -152,6 +161,7 @@ func (g *Game) Discard(playerID string, idx int) error {
 
 	g.UpdatedAt = time.Now()
 
+	g.DiscardCount++
 	g.Discards[idx] = playerID
 	delete(g.PlayerCards, idx)
 	err := g.Draw(playerID)

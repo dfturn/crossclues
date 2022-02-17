@@ -14,6 +14,16 @@ const settingToggles = [
   },
 ];
 
+const settingNumbers = [
+  {
+    name: 'Board Size',
+    setting: 'boardSize',
+    desc: 'NxN size of the board.',
+    min: 3,
+    max: 5,
+  },
+];
+
 export class Settings {
   static load() {
     try {
@@ -102,6 +112,33 @@ export class SettingsPanel extends React.Component {
                 toggle={toggle}
                 handleToggle={this.props.toggle}
               />
+            ))}
+          </div>
+
+          <div className="settingNumbers">
+            {settingNumbers.map((setting) => (
+              <div id="timer-duration" key={setting.setting}>
+                <span>{setting.name}</span>
+                <input
+                  type="number"
+                  name={setting.name}
+                  id={setting.setting}
+                  min={setting.min}
+                  max={setting.max}
+                  value={this.props.values[setting.setting] ?? setting.min}
+                  onChange={(e) => {
+                    let val = parseInt(e?.target?.value);
+                    this.props.handleNumberSetting(e, setting.setting, val);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className={'playerIds'}>
+            <h2>Connected Players</h2>
+            {this.props.game.player_ids.map((w, idx) => (
+              <span key={idx}>{w}</span>
             ))}
           </div>
         </div>
